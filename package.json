@@ -1,0 +1,159 @@
+{
+  "name": "freest",
+  "displayName": "FreeST",
+  "description": "FreeST language support: syntax highlighting, diagnostics via the FreeST language server, and run/load commands",
+  "version": "0.0.0",
+  "publisher": "freest",
+  "author": "The FreeST Team",
+  "license": "BSD-3-Clause",
+  "icon": "resources/freest-extension-icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/freest-lang/vscode-freest"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "freest",
+    "session types",
+    "fst"
+  ],
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "freest",
+        "aliases": [
+          "FreeST",
+          "freest"
+        ],
+        "extensions": [
+          ".fst"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./resources/freest-lang-icon.png",
+          "dark": "./resources/freest-lang-icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "freest",
+        "scopeName": "source.freest",
+        "path": "./syntaxes/freest.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "freest.run",
+        "title": "Run File",
+        "category": "FreeST",
+        "icon": "$(play)"
+      },
+      {
+        "command": "freest.load",
+        "title": "Load File in REPL",
+        "category": "FreeST",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "freest.restartServer",
+        "title": "Restart Language Server",
+        "category": "FreeST"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "freest.run",
+          "when": "resourceLangId == freest && !isInDiffEditor",
+          "group": "navigation@0"
+        },
+        {
+          "command": "freest.load",
+          "when": "resourceLangId == freest && !isInDiffEditor",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "freest.run",
+          "when": "editorTextFocus && editorLangId == freest",
+          "group": "freest@1"
+        },
+        {
+          "command": "freest.load",
+          "when": "editorTextFocus && editorLangId == freest",
+          "group": "freest@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "freest.run",
+          "when": "editorLangId == freest"
+        },
+        {
+          "command": "freest.load",
+          "when": "editorLangId == freest"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "FreeST",
+      "properties": {
+        "freest.path": {
+          "type": "string",
+          "default": "freest",
+          "scope": "machine-overridable",
+          "markdownDescription": "Path to the `freest` executable. Used for the language server (`freest --lsp`) and the Run / Load commands. Defaults to `freest` on the `PATH`."
+        },
+        "freest.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "markdownDescription": "Traces the communication between VS Code and the FreeST language server. Takes effect when the log level of the *FreeST Language Server* output channel is set to *Trace*."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run build:grammar && npm run check-types && node scripts/esbuild.mjs",
+    "watch": "npm run build:grammar && npm-run-all -p watch:*",
+    "watch:esbuild": "node scripts/esbuild.mjs --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run build:grammar && npm run check-types && node scripts/esbuild.mjs --production",
+    "check-types": "tsc --noEmit && tsc --noEmit --project test/extension",
+    "build:grammar": "node scripts/build-grammar.mjs",
+    "pretest": "npm run compile",
+    "test": "npm run test:grammar && vscode-test",
+    "test:grammar": "npm run build:grammar && vscode-tmgrammar-test 'test/grammar/*.fst'"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "~1.93.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2",
+    "js-yaml": "^5.5.0",
+    "npm-run-all2": "^8.0.4",
+    "typescript": "^6.0.3",
+    "vscode-tmgrammar-test": "^0.1.3"
+  }
+}

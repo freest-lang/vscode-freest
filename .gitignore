@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.vsix
+# built from freest.tmLanguage.yaml by npm run build:grammar
+syntaxes/freest.tmLanguage.json
+.vscode-test/

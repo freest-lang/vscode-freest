@@ -1,0 +1,299 @@
+# TextMate grammar for FreeST 5, following the compiler's lexer
+# (freest/src/Parser/Lexer.x). `npm run build:grammar` expands the
+# {{variables}} and writes freest.tmLanguage.json, which VS Code loads.
+#
+# All types, built-ins and kinds included, share the entity.name.type family so
+# that every theme colors them alike. The grammar cannot tell types from data
+# constructors and labels; that is left to semantic tokens from the language
+# server, not implemented yet.
+
+name: FreeST
+scopeName: source.freest
+
+variables:
+  startOfIdentifier: (?<![\w'])
+  endOfIdentifier: (?![\w'])
+  lowerId: '[a-z][\w'']*'
+  upperId: '[A-Z][\w'']*'
+  qualifiedUpperId: '{{upperId}}(?:\.{{upperId}})*'
+
+  # As in the Haskell grammar, so that future user-defined operators are one
+  # token each. `;` is always a token of its own.
+  opChars: '!#$%&*+./<=>?@\\^|\-~:'
+  notAfterOp: '(?<![{{opChars}}])'
+  notBeforeOp: '(?![{{opChars}}])'
+  # Session prefixes may follow `@`, `*`, `!` or `?` directly (`@*?T`, `!*?T`)
+  notAfterOpSession: '(?<![!#$%&+./<=>\\^|\-~:])'
+  operatorName: '\([{{opChars}};'']+\)'
+
+  decimal: '\d(?:_*\d)*'
+  exponent: '_*[eE][-+]?{{decimal}}'
+  # The parser decodes literals with Haskell's `read`
+  escape: '\\(?:[abfnrtv\\"''&]|\d+|x[0-9A-Fa-f]+|o[0-7]+|\^[A-Z@\[\\\]^_]|NUL|SOH|STX|ETX|EOT|ENQ|ACK|BEL|BS|HT|LF|VT|FF|CR|SO|SI|DLE|DC1|DC2|DC3|DC4|NAK|SYN|ETB|CAN|EM|SUB|ESC|FS|GS|RS|US|SP|DEL)'
+
+  multiplicity: '(?:[1*]|{{lowerId}}|\([^()]*\))'
+  kindAtom: '(?:[1*]\s*|{{lowerId}}\s+|\([^()]*\)\s*)[TSC]{{endOfIdentifier}}'
+  kindUnit: '(?:{{kindAtom}}|\(\s*{{kindAtom}}(?:\s*->\s*{{kindAtom}})*\s*\))'
+  kind: '{{kindUnit}}(?:\s*->\s*{{kindUnit}})*'
+
+patterns:
+  - include: '#comments'
+  - include: '#module-header'
+  - include: '#signature-names'
+  - include: '#kinds'
+  - include: '#literals'
+  - include: '#keywords'
+  - include: '#builtin-types'
+  - include: '#multiplicities'
+  - include: '#operators'
+  - include: '#names'
+  - include: '#punctuation'
+
+repository:
+  comments:
+    patterns:
+      - include: '#block-comment'
+      # Unlike Haskell, `--` starts a comment even after operator characters
+      - name: comment.line.double-dash.freest
+        begin: '--'
+        beginCaptures: { '0': { name: punctuation.definition.comment.freest } }
+        end: '$'
+        patterns: [{ include: '#todo' }]
+
+  block-comment:
+    name: comment.block.freest
+    begin: '\{-'
+    beginCaptures: { '0': { name: punctuation.definition.comment.begin.freest } }
+    end: '-\}'
+    endCaptures: { '0': { name: punctuation.definition.comment.end.freest } }
+    patterns:
+      - include: '#block-comment'
+      - include: '#todo'
+
+  todo:
+    name: keyword.other.todo.freest
+    match: '\b(?:TODO|FIXME|XXX)\b'
+
+  module-header:
+    patterns:
+      - match: '^(module)\s+({{qualifiedUpperId}}){{endOfIdentifier}}'
+        captures:
+          '1': { name: keyword.other.module.freest }
+          '2': { name: entity.name.namespace.freest }
+      - match: '{{startOfIdentifier}}(import)\s+({{qualifiedUpperId}}){{endOfIdentifier}}'
+        captures:
+          '1': { name: keyword.other.import.freest }
+          '2': { name: entity.name.namespace.freest }
+
+  # Only signatures, as in the Haskell and Idris grammars: by layout, a name at
+  # column 0 followed by `:` is always one. Equations are left to semantic
+  # tokens.
+  signature-names:
+    begin: '^(?=(?:{{lowerId}}|{{operatorName}})(?:\s*,\s*(?:{{lowerId}}|{{operatorName}}))*\s*:(?!:))'
+    end: '(?=:)'
+    patterns:
+      - name: entity.name.function.freest
+        match: '{{lowerId}}|{{operatorName}}'
+      - name: punctuation.separator.comma.freest
+        match: ','
+
+  # Kinds occur only after `:` and after `Void @`. Must come before #literals,
+  # or `1T` would be a number.
+  kinds:
+    patterns:
+      # `(x : a T)` is read as a kind even when it is the type `a` applied to
+      # a type named `T`
+      - name: meta.kind.freest
+        begin: '(:)(?!:)(?=\s*{{kind}}\s*(?:[)=,.]|--|\{-|$))'
+        beginCaptures: { '1': { name: keyword.operator.colon.freest } }
+        end: '(?=[)=,.]|--|\{-|$)'
+        patterns: [{ include: '#kind-body' }]
+      - match: '{{startOfIdentifier}}(Void)\s*(@)\s*({{kindUnit}})'
+        captures:
+          '1': { name: entity.name.type.builtin.freest }
+          '2': { name: keyword.operator.at.freest }
+          '3': { name: meta.kind.freest, patterns: [{ include: '#kind-body' }] }
+      - name: meta.kind.freest
+        match: '{{startOfIdentifier}}([1*])([TSC]){{endOfIdentifier}}'
+        captures:
+          '1': { name: entity.name.type.multiplicity.freest }
+          '2': { name: entity.name.type.prekind.freest }
+
+  kind-body:
+    patterns:
+      - include: '#comments'
+      - match: '{{startOfIdentifier}}([1*])\s*([TSC]){{endOfIdentifier}}'
+        captures:
+          '1': { name: entity.name.type.multiplicity.freest }
+          '2': { name: entity.name.type.prekind.freest }
+      - name: entity.name.type.prekind.freest
+        match: '{{startOfIdentifier}}[TSC]{{endOfIdentifier}}'
+      - name: entity.name.type.multiplicity.freest
+        match: '[1*]'
+      - name: keyword.operator.arrow.freest
+        match: '->'
+      - name: keyword.operator.plus.freest
+        match: '\+'
+      - begin: '\('
+        beginCaptures: { '0': { name: punctuation.bracket.round.freest } }
+        end: '\)'
+        endCaptures: { '0': { name: punctuation.bracket.round.freest } }
+        patterns: [{ include: '#kind-body' }]
+      - match: '{{startOfIdentifier}}{{lowerId}}'
+
+  literals:
+    patterns:
+      - include: '#multiline-string'
+      - include: '#string'
+      - include: '#char'
+      - include: '#numbers'
+
+  # Ends at a line break, as the lexer does, unless a gap spans it
+  string:
+    name: string.quoted.double.freest
+    begin: '"'
+    beginCaptures: { '0': { name: punctuation.definition.string.begin.freest } }
+    end: '"|$'
+    endCaptures: { '0': { name: punctuation.definition.string.end.freest } }
+    patterns: [{ include: '#string-escapes' }]
+
+  # As in GHC's MultilineStrings: the first `"""` closes it, so `"` and `""`
+  # need no escape inside
+  multiline-string:
+    name: string.quoted.triple.freest
+    begin: '"""'
+    beginCaptures: { '0': { name: punctuation.definition.string.begin.freest } }
+    end: '"""'
+    endCaptures: { '0': { name: punctuation.definition.string.end.freest } }
+    patterns: [{ include: '#string-escapes' }]
+
+  string-escapes:
+    patterns:
+      # A gap: whitespace, line breaks included, between two backslashes
+      - begin: '\\(?=\s)'
+        beginCaptures: { '0': { name: constant.character.escape.gap.begin.freest } }
+        end: '(\\)|([^\s"])|(?=")'
+        endCaptures:
+          '1': { name: constant.character.escape.gap.end.freest }
+          '2': { name: invalid.illegal.escape.freest }
+      - name: constant.character.escape.freest
+        match: '{{escape}}'
+      - name: invalid.illegal.escape.freest
+        match: '\\.'
+
+  # The lexer accepts `\n` as the only escape; `'\'` lexes but `read` rejects it
+  char:
+    name: string.quoted.single.freest
+    match: '{{startOfIdentifier}}('')(?:(\\n)|(\\)|[^\n])('')'
+    captures:
+      '1': { name: punctuation.definition.string.begin.freest }
+      '2': { name: constant.character.escape.freest }
+      '3': { name: invalid.illegal.escape.freest }
+      '4': { name: punctuation.definition.string.end.freest }
+
+  numbers:
+    patterns:
+      - name: constant.numeric.float.freest
+        match: '{{startOfIdentifier}}{{decimal}}(?:\.{{decimal}}(?:{{exponent}})?|{{exponent}})'
+      - name: constant.numeric.integer.decimal.freest
+        match: '{{startOfIdentifier}}{{decimal}}'
+
+  keywords:
+    patterns:
+      - match: '{{startOfIdentifier}}(if|then|else|case|of|let|in){{endOfIdentifier}}'
+        captures: { '1': { name: keyword.control.$1.freest } }
+      - match: '{{startOfIdentifier}}(module|where|import|data|type|mutual|forall|exists|rec|channel|select){{endOfIdentifier}}'
+        captures: { '1': { name: keyword.other.$1.freest } }
+      - name: keyword.other.select-unrestricted.freest
+        match: '{{startOfIdentifier}}select_{{endOfIdentifier}}'
+      - name: keyword.other.send-type.freest
+        match: '{{startOfIdentifier}}sendType{{endOfIdentifier}}'
+      - name: keyword.other.receive-type.freest
+        match: '{{startOfIdentifier}}receiveType{{endOfIdentifier}}'
+
+  builtin-types:
+    name: entity.name.type.builtin.freest
+    match: '{{startOfIdentifier}}(?:Int|Float|Char|Skip|Close|Wait|Void|Dual){{endOfIdentifier}}'
+
+  multiplicities:
+    patterns:
+      - match: '(-)({{multiplicity}}(?:\+{{multiplicity}})*)(->)'
+        captures:
+          '1': { name: keyword.operator.arrow.freest }
+          '2': { patterns: [{ include: '#multiplicity-expression' }] }
+          '3': { name: keyword.operator.arrow.freest }
+      - match: '(#)\s*([1*])'
+        captures:
+          '1': { name: keyword.operator.hash.freest }
+          '2': { name: entity.name.type.multiplicity.freest }
+
+  multiplicity-expression:
+    patterns:
+      - name: entity.name.type.multiplicity.freest
+        match: '[1*]'
+      - name: keyword.operator.plus.freest
+        match: '\+'
+      - name: punctuation.bracket.round.freest
+        match: '[()]'
+      - match: '{{lowerId}}'
+
+  operators:
+    patterns:
+      # `\@a`, `\#m`: type and multiplicity abstraction
+      - match: '{{notAfterOp}}(\\)(?![!$%&*+./<=>?\\^|\-~:])'
+        captures: { '1': { name: keyword.operator.lambda.freest } }
+      - match: '{{notAfterOp}}(?:(->)|(=)|(:)|(\|)|(\.)){{notBeforeOp}}'
+        captures:
+          '1': { name: keyword.operator.arrow.freest }
+          '2': { name: keyword.operator.eq.freest }
+          '3': { name: keyword.operator.colon.freest }
+          '4': { name: keyword.operator.pipe.freest }
+          '5': { name: keyword.operator.dot.freest }
+      - name: keyword.operator.semicolon.freest
+        match: ';'
+      - name: keyword.operator.arrow.freest
+        match: '-\{|\}->'
+      - match: '{{notAfterOpSession}}(\*)?(?:(!)|(\?))(?![!#$%&+./<=>@\\^|\-~:?])'
+        captures:
+          '1': { name: keyword.operator.star.freest }
+          '2': { name: keyword.operator.bang.freest }
+          '3': { name: keyword.operator.question.freest }
+      # The `{` of a choice may open the next line; `&L` is a choice pattern
+      - match: '{{notAfterOpSession}}(\*)?(?:(&)(?=\s*(?:\{|[A-Z]|$))|(\+)(?=\s*(?:\{|$)))'
+        captures:
+          '1': { name: keyword.operator.star.freest }
+          '2': { name: keyword.operator.amp.freest }
+          '3': { name: keyword.operator.plus.freest }
+      # May follow a lambda (`\@a`, `\#m`)
+      - match: '(?<![!#$%&*+./<=>?@^|\-~:])(?:(@)|(#))'
+        captures:
+          '1': { name: keyword.operator.at.freest }
+          '2': { name: keyword.operator.hash.freest }
+      - name: keyword.operator.freest
+        match: '(?:\+\+|::)''|(?:(?!--)[{{opChars}}])+'
+
+  names:
+    patterns:
+      - match: '{{startOfIdentifier}}({{upperId}}(?:\.{{upperId}})*\.)({{upperId}})'
+        captures:
+          '1': { name: entity.name.namespace.freest }
+          '2': { name: entity.name.type.freest }
+      - name: entity.name.type.freest
+        match: '{{startOfIdentifier}}{{upperId}}'
+      # Consumed so that their primes are not read as character literals
+      - match: '{{startOfIdentifier}}[a-z_][\w'']*'
+
+  punctuation:
+    patterns:
+      - match: '(\])('')'
+        captures:
+          '1': { name: punctuation.bracket.square.freest }
+          '2': { name: storage.modifier.linear.freest }
+      - name: punctuation.bracket.square.freest
+        match: '[\[\]]'
+      - name: punctuation.bracket.round.freest
+        match: '[()]'
+      - name: punctuation.bracket.curly.freest
+        match: '[{}]'
+      - name: punctuation.separator.comma.freest
+        match: ','
