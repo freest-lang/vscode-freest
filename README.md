@@ -1,14 +1,26 @@
 # FreeST for Visual Studio Code
 
 This extension adds language support for [FreeST](https://freest-lang.github.io/),
-featuring syntax highlighting, error diagnostics from the FreeST language server,
+featuring syntax highlighting, error diagnostics from the language server,
 and commands to run a program or load it into the REPL.
 
 ## Requirements
 
 - VS Code 1.93 or later.
-- A development version of FreeST with language server support (`freest --lsp`).
-  Clone it from the [FreeST repository](https://github.com/freest-lang/freest).
+- The current development version of FreeST. Clone it from the `dev` branch of the [FreeST repository](https://github.com/freest-lang/freest).
+
+## Build
+
+Building the `.vsix` file requires Node.js 22 or later. From the root of this
+repository, run:
+
+```sh
+npm install
+npx vsce package
+```
+
+This writes `freest-<version>.vsix` (currently `freest-0.0.0.vsix`) to the
+repository root.
 
 ## Install
 
